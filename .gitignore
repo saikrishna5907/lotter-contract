@@ -16,3 +16,5 @@ docs/
 // test
 coverage
 lcov
+lcov
+lib/

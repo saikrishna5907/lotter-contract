@@ -22,9 +22,10 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity 0.8.19;
-
-import {VRFCoordinatorV2Interface} from "@chainlink/contracts/vrf/interfaces/VRFCoordinatorV2Interface.sol";
-import {VRFConsumerBaseV2} from "@chainlink/contracts/vrf/VRFConsumerBaseV2.sol";
+import {console2} from "forge-std/Test.sol";
+import {VRFConsumerBaseV2Plus} from "@chainlink/contracts/vrf/dev/VRFConsumerBaseV2Plus.sol";
+import {IVRFCoordinatorV2Plus} from "@chainlink/contracts/vrf/dev/interfaces/IVRFCoordinatorV2Plus.sol";
+import {VRFV2PlusClient} from "@chainlink/contracts/vrf/dev/libraries/VRFV2PlusClient.sol";
 
 /**
  * @title A Lottery contract
@@ -32,7 +33,7 @@ import {VRFConsumerBaseV2} from "@chainlink/contracts/vrf/VRFConsumerBaseV2.sol"
  * @notice This contract is used to create a Lottery
  * @dev Implements the Chainlin VRFv2
  */
-contract Lottery is VRFConsumerBaseV2 {
+contract Lottery is VRFConsumerBaseV2Plus {
     error Lottery__NotEnoughEthToEnterLottery();
     error Lottery__WinnerTransferAmountFailed();
     error Lottery__LotteryNotOpen();
@@ -62,11 +63,11 @@ contract Lottery is VRFConsumerBaseV2 {
     uint256 private immutable i_entranceFee;
     // @dev duration of the lottery in seconds
     uint256 private immutable i_lotteryDuration;
-    VRFCoordinatorV2Interface private immutable i_vrfCoordinator;
+    IVRFCoordinatorV2Plus private immutable i_vrfCoordinator;
     bytes32 private immutable i_gasLane;
     uint16 private immutable i_requestConfirmations;
     uint32 private immutable i_callbackGasLimit;
-    uint64 private immutable i_subscriptionId;
+    uint256 private immutable i_subscriptionId;
     uint256 private s_startTime;
     address payable[] private s_players;
     address private s_recentWinner;
@@ -84,14 +85,14 @@ contract Lottery is VRFConsumerBaseV2 {
         uint256 lotteryDuration,
         address vrfCoordinator,
         bytes32 gasLane,
-        uint64 subscriptionId,
+        uint256 subscriptionId,
         uint16 requestConfirmations,
         uint32 callbackGasLimit
-    ) VRFConsumerBaseV2(vrfCoordinator) {
+    ) VRFConsumerBaseV2Plus(vrfCoordinator) {
         i_entranceFee = entranceFee;
         i_lotteryDuration = lotteryDuration;
         s_startTime = block.timestamp;
-        i_vrfCoordinator = VRFCoordinatorV2Interface(vrfCoordinator);
+        i_vrfCoordinator = IVRFCoordinatorV2Plus(vrfCoordinator);
         i_gasLane = gasLane;
         i_subscriptionId = subscriptionId;
         i_requestConfirmations = requestConfirmations;
@@ -149,34 +150,48 @@ contract Lottery is VRFConsumerBaseV2 {
         }
         // change the state to CALCULATING_WINNER
         s_lotteryState = LotteryState.CALCULATING_WINNER;
+
+        VRFV2PlusClient.RandomWordsRequest memory request = VRFV2PlusClient
+            .RandomWordsRequest({
+                keyHash: i_gasLane,
+                subId: i_subscriptionId,
+                requestConfirmations: i_requestConfirmations,
+                callbackGasLimit: i_callbackGasLimit,
+                numWords: numWords,
+                extraArgs: VRFV2PlusClient._argsToBytes(
+                    // set nativePayment to true to pay for VRF requests with sepolia ETH instead of LINK
+                    VRFV2PlusClient.ExtraArgsV1({nativePayment: false})
+                )
+            });
+
         // Pick the winner
-        i_vrfCoordinator.requestRandomWords(
-            i_gasLane,
-            i_subscriptionId,
-            i_requestConfirmations,
-            i_callbackGasLimit,
-            numWords
-        );
+        i_vrfCoordinator.requestRandomWords(request);
+        // i_gasLane,
+        //     i_subscriptionId,
+        //     i_requestConfirmations,
+        //     i_callbackGasLimit,
+        //     numWords
     }
 
     function fulfillRandomWords(
-        uint256,
+        uint256 requestId,
         /*requestId*/
-        uint256[] memory randomWords
+        uint256[] calldata randomWords
     ) internal override {
+        console2.log("Random requestId: %s", requestId);
         // use the random number to pick a winner
         uint256 index = randomWords[0] % s_players.length;
         address payable winner = s_players[index];
         s_recentWinner = winner;
+        s_players = new address payable[](0);
+        s_lotteryState = LotteryState.OPEN;
+        s_startTime = block.timestamp;
         (bool success, ) = payable(winner).call{value: address(this).balance}(
             ""
         );
         if (!success) {
             revert Lottery__WinnerTransferAmountFailed();
         }
-        s_players = new address payable[](0);
-        s_lotteryState = LotteryState.OPEN;
-        s_startTime = block.timestamp;
 
         emit WinnerPicked(winner);
         // automatically transfer the money to the winner

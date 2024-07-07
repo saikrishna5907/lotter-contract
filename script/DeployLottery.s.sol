@@ -9,51 +9,44 @@ import {CreateSubscription, FundSubscription, AddConsumer} from "./Interactions.
 contract DeployLottery is Script {
     function run() external returns (Lottery, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
-        (
-            uint256 entranceFee,
-            uint256 lotteryDuration,
-            address vrfCoordinator,
-            bytes32 gasLane,
-            uint64 subscriptionId,
-            uint16 requestConfirmations,
-            uint32 callbackGasLimit,
-            address linkTokenAddress,
-            uint256 deployerKey
-        ) = helperConfig.activeNetworkConfig();
+        HelperConfig.NetworkConfig memory config = helperConfig.getConfig();
 
-        if (subscriptionId == 0) {
+        if (config.subscriptionId == 0) {
             // create a subscription
             CreateSubscription createSubscription = new CreateSubscription();
-            subscriptionId = createSubscription.createSubscription(
-                vrfCoordinator
+            (config.subscriptionId, ) = createSubscription.createSubscription(
+                config.vrfCoordinator,
+                config.account
             );
 
             // fund the subscription
             FundSubscription fundSubscription = new FundSubscription();
             fundSubscription.fundSubscription(
-                vrfCoordinator,
-                subscriptionId,
-                linkTokenAddress
+                config.vrfCoordinator,
+                config.subscriptionId,
+                config.linkTokenAddress,
+                config.account
             );
         }
 
-        vm.startBroadcast();
+        vm.startBroadcast(config.account);
         Lottery lottery = new Lottery(
-            entranceFee,
-            lotteryDuration,
-            vrfCoordinator,
-            gasLane,
-            subscriptionId,
-            requestConfirmations,
-            callbackGasLimit
+            config.entranceFee,
+            config.lotteryDuration,
+            config.vrfCoordinator,
+            config.gasLane,
+            config.subscriptionId,
+            config.requestConfirmations,
+            config.callbackGasLimit
         );
 
         vm.stopBroadcast();
         AddConsumer addConsumer = new AddConsumer();
         addConsumer.addConsumer(
             address(lottery),
-            vrfCoordinator,
-            subscriptionId
+            config.vrfCoordinator,
+            config.subscriptionId,
+            config.account
         );
 
         return (lottery, helperConfig);
