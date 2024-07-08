@@ -31,7 +31,7 @@ deploy-sepolia:
 	forge script script/DeployLottery.s.sol:DeployLottery --rpc-url $(ZKSYNC_SEPOLIA_RPC_URL) --account Account1 --broadcast --verify --etherscan-api-key $(ETHERSCAN_API_KEY) -vvvv
 
 deploy-anvil:
-	forge script script/DeployLottery.s.sol:DeployLottery --rpc-url http://localhost:8545 --account Account1 --broadcast
+	forge script script/DeployLottery.s.sol:DeployLottery --rpc-url http://localhost:8545 --account local_anvil --broadcast
 
 # As of writing, the Alchemy zkSync RPC URL is not working correctly 
 deploy-zk:
