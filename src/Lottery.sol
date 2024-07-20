@@ -71,6 +71,7 @@ contract Lottery is VRFConsumerBaseV2Plus {
     uint256 private s_startTime;
     address payable[] private s_players;
     address private s_recentWinner;
+    mapping(address => bool) private enteredPlayers;
     LotteryState private s_lotteryState;
 
     /**
@@ -110,6 +111,7 @@ contract Lottery is VRFConsumerBaseV2Plus {
             revert Lottery__NotEnoughEthToEnterLottery();
         }
         s_players.push(payable(msg.sender));
+        enteredPlayers[msg.sender] = true;
 
         emit EnteredLottery(msg.sender);
     }
@@ -244,5 +246,9 @@ contract Lottery is VRFConsumerBaseV2Plus {
 
     function getCallbackGasLimit() public view returns (uint32) {
         return i_callbackGasLimit;
+    }
+
+    function hasEntered(address player) public view returns (bool) {
+        return enteredPlayers[player];
     }
 }

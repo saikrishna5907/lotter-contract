@@ -158,6 +158,14 @@ contract LotteryTest is Test, CodeConstants {
         assert(lottery.getPlayer(0) == PLAYER);
     }
 
+    function testLotterySetsEnteredLotteryForPlayerToTrue()
+        public
+        lotteryFundPlayerBalance
+    {
+        lottery.enterLottery{value: config.entranceFee}();
+        assertTrue(lottery.hasEntered(PLAYER));
+    }
+
     function testEmitsEnteredLotteryEventWhenPlayerEnters()
         public
         lotteryFundPlayerBalance
